@@ -20,7 +20,8 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "buildTarget": "stock-analysis:build"
+            "buildTarget": "stock-analysis:build",
+            "proxyConfig": "proxy.conf.json"
           }
         }
       }
