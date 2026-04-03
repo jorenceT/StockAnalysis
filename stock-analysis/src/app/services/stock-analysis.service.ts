@@ -97,6 +97,7 @@ export class StockAnalysisService {
   private normalizeYahooResults(response: YahooSearchResponse): StockSearchResult[] {
     return (response.quotes ?? [])
       .filter((quote) => !!quote.symbol && quote.quoteType?.toLowerCase() === 'equity')
+      .filter((quote) => this.isIndianMarketQuote(quote.symbol ?? '', quote.exchDisp))
       .map((quote) => {
         const symbol = quote.symbol ?? '';
         const supportedSymbol = this.resolveSupportedSymbol(symbol);
@@ -126,5 +127,16 @@ export class StockAnalysisService {
   private resolveSupportedSymbol(rawSymbol: string): string | undefined {
     const normalized = rawSymbol.toUpperCase().split('.')[0];
     return this.universe.find((stock) => stock.symbol === normalized)?.symbol;
+  }
+
+  private isIndianMarketQuote(symbol: string, exchange?: string): boolean {
+    const symbolUpper = symbol.toUpperCase();
+    const exchangeUpper = (exchange ?? '').toUpperCase();
+
+    return symbolUpper.endsWith('.NS') ||
+      symbolUpper.endsWith('.BO') ||
+      exchangeUpper.includes('NSE') ||
+      exchangeUpper.includes('BSE') ||
+      exchangeUpper.includes('INDIA');
   }
 }

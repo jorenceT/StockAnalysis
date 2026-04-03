@@ -11,14 +11,14 @@ import { StockAnalysisService } from '../../services/stock-analysis.service';
   imports: [CommonModule, FormsModule],
   template: `
     <section class="card">
-      <h2>Watchlist</h2>
+      <h2>Search All Stocks (Indian Market)</h2>
       <div class="row">
         <div class="input-wrap">
           <input
             [(ngModel)]="symbolQuery"
             (ngModelChange)="onQueryChange()"
             (keydown.enter)="onAdd()"
-            placeholder="Search symbol or company (e.g. Tata, SBIN)"
+            placeholder="Search NSE/BSE stocks (e.g. Tata Motors, SBIN)"
           />
           <div *ngIf="filteredSuggestions.length > 0" class="suggestions">
             <button
@@ -31,16 +31,20 @@ import { StockAnalysisService } from '../../services/stock-analysis.service';
               <strong>{{ stock.symbol }}</strong>
               <span>{{ stock.name }}</span>
               <small *ngIf="stock.exchange">({{ stock.exchange }})</small>
-              <small *ngIf="!stock.supportedSymbol" class="muted">Not supported for analysis</small>
+              <small *ngIf="!stock.supportedSymbol" class="unsupported-note">Not supported for analysis</small>
             </button>
           </div>
         </div>
         <button (click)="onAdd()">Add</button>
       </div>
       <small *ngIf="showInvalidMessage" class="error">
-        Please select a valid stock from the suggestions.
+        Please select a valid stock suggestion to add.
+      </small>
+      <small *ngIf="symbolQuery.trim() && filteredSuggestions.length === 0" class="empty-state">
+        No matching NSE/BSE stocks found.
       </small>
 
+      <h2>Watchlist</h2>
       <div *ngFor="let item of watchlistData" class="item">
         <div>
           <strong>{{ item.stock.symbol }}</strong> - {{ item.outlook }}
@@ -59,13 +63,15 @@ import { StockAnalysisService } from '../../services/stock-analysis.service';
     .suggestion-item:disabled{color:#9ca3af;background:#f9fafb;cursor:not-allowed}
     .suggestion-item:last-child{border-bottom:none}
     .suggestion-item:hover{background:#f9fafb}
-    .muted{margin-left:auto}
+    .unsupported-note{margin-left:auto}
+    .empty-state{display:block;color:#6b7280;margin-bottom:.5rem}
     .error{display:block;color:#b91c1c;margin-bottom:.5rem}
     .item{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid #eee}
   `]
 })
 export class WatchlistComponent implements OnInit, OnDestroy {
   @Input() watchlistData: WatchlistRecommendation[] = [];
+  @Input() universe: unknown[] = [];
   @Output() add = new EventEmitter<string>();
   @Output() remove = new EventEmitter<string>();
 
