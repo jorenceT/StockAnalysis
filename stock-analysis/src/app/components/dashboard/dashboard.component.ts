@@ -19,6 +19,7 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
       <app-recommendations [recommendations]="rankedSuggestions"></app-recommendations>
       <app-watchlist
         [watchlistData]="watchlistData"
+        [universe]="universe"
         (add)="addToWatchlist($event)"
         (remove)="removeFromWatchlist($event)">
       </app-watchlist>
@@ -29,6 +30,7 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
 export class DashboardComponent implements OnInit, OnDestroy {
   universe: Stock[] = [];
   rankedSuggestions: StockRecommendation[] = [];
+  topSuggestions: StockRecommendation[] = [];
   watchlistData: StockRecommendation[] = [];
 
   private sub?: Subscription;
@@ -43,6 +45,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     this.universe = this.analysis.getUniverse();
     this.rankedSuggestions = this.analysis.getTopSuggestions(this.universe.length);
+    this.topSuggestions = this.analysis.getTopSuggestions(5);
     await this.notifications.initPermissions();
     this.digest.start();
 

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { StockRecommendation, StockSearchResult } from '../../models/stock.model';
 import { StockAnalysisService } from '../../services/stock-analysis.service';
+import { Stock, StockRecommendation } from '../../models/stock.model';
 
 @Component({
   selector: 'app-watchlist',
@@ -26,6 +27,11 @@ import { StockAnalysisService } from '../../services/stock-analysis.service';
               type="button"
               class="suggestion-item"
               [disabled]="!stock.supportedSymbol"
+          <div *ngIf="filteredUniverse.length > 0" class="suggestions">
+            <button
+              *ngFor="let stock of filteredUniverse"
+              type="button"
+              class="suggestion-item"
               (click)="selectSuggestion(stock)"
             >
               <strong>{{ stock.symbol }}</strong>
@@ -60,12 +66,15 @@ import { StockAnalysisService } from '../../services/stock-analysis.service';
     .suggestion-item:last-child{border-bottom:none}
     .suggestion-item:hover{background:#f9fafb}
     .muted{margin-left:auto}
+    .suggestion-item:last-child{border-bottom:none}
+    .suggestion-item:hover{background:#f9fafb}
     .error{display:block;color:#b91c1c;margin-bottom:.5rem}
     .item{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid #eee}
   `]
 })
 export class WatchlistComponent implements OnInit, OnDestroy {
   @Input() watchlistData: StockRecommendation[] = [];
+  @Input() universe: Stock[] = [];
   @Output() add = new EventEmitter<string>();
   @Output() remove = new EventEmitter<string>();
 
@@ -113,19 +122,43 @@ export class WatchlistComponent implements OnInit, OnDestroy {
     this.symbolQuery = stock.symbol;
     this.selectedSupportedSymbol = stock.supportedSymbol;
     this.filteredSuggestions = [];
+  symbolQuery = '';
+  filteredUniverse: Stock[] = [];
+  showInvalidMessage = false;
+
+  onQueryChange(): void {
+    const query = this.symbolQuery.trim().toLowerCase();
+    this.showInvalidMessage = false;
+    if (!query) {
+      this.filteredUniverse = [];
+      return;
+    }
+
+    this.filteredUniverse = this.universe
+      .filter((stock) =>
+        stock.symbol.toLowerCase().includes(query) ||
+        stock.name.toLowerCase().includes(query)
+      )
+      .slice(0, 8);
+  }
+
+  selectSuggestion(stock: Stock): void {
+    this.symbolQuery = stock.symbol;
+    this.filteredUniverse = [];
     this.showInvalidMessage = false;
   }
 
   onAdd(): void {
-    const typed = this.symbolQuery.trim().toLowerCase();
-    const matchedSuggestion = this.filteredSuggestions.find(
-      (item) =>
-        !!item.supportedSymbol &&
-        (item.symbol.toLowerCase() === typed || item.name.toLowerCase() === typed)
-    );
-    const symbolToAdd = this.selectedSupportedSymbol || matchedSuggestion?.supportedSymbol;
+    const query = this.symbolQuery.trim().toLowerCase();
+    if (!query) return;
 
-    if (!symbolToAdd) {
+    const exactMatch = this.universe.find(
+      (stock) =>
+        stock.symbol.toLowerCase() === query ||
+        stock.name.toLowerCase() === query
+    );
+
+    if (!exactMatch) {
       this.showInvalidMessage = true;
       this.onQueryChange();
       return;
@@ -135,6 +168,9 @@ export class WatchlistComponent implements OnInit, OnDestroy {
     this.symbolQuery = '';
     this.filteredSuggestions = [];
     this.selectedSupportedSymbol = undefined;
+    this.add.emit(exactMatch.symbol);
+    this.symbolQuery = '';
+    this.filteredUniverse = [];
     this.showInvalidMessage = false;
   }
 }
