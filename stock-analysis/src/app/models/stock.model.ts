@@ -20,3 +20,10 @@ export interface StockRecommendation {
   outlook: Outlook;
   reason: string;
 }
+
+export interface StockSearchResult {
+  symbol: string;
+  name: string;
+  exchange?: string;
+  supportedSymbol?: string;
+}
