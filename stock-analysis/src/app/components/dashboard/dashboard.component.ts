@@ -16,7 +16,7 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
   template: `
     <main class="page grid">
       <h1>Indian Stock Advisor</h1>
-      <app-recommendations [recommendations]="topSuggestions"></app-recommendations>
+      <app-recommendations [recommendations]="rankedSuggestions"></app-recommendations>
       <app-watchlist
         [watchlistData]="watchlistData"
         [universe]="universe"
@@ -29,6 +29,7 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   universe: Stock[] = [];
+  rankedSuggestions: StockRecommendation[] = [];
   topSuggestions: StockRecommendation[] = [];
   watchlistData: StockRecommendation[] = [];
 
@@ -43,6 +44,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.universe = this.analysis.getUniverse();
+    this.rankedSuggestions = this.analysis.getTopSuggestions(this.universe.length);
     this.topSuggestions = this.analysis.getTopSuggestions(5);
     await this.notifications.initPermissions();
     this.digest.start();
