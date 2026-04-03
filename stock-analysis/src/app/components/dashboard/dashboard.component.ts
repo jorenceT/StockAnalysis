@@ -19,6 +19,7 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
       <app-recommendations [recommendations]="rankedSuggestions"></app-recommendations>
       <app-watchlist
         [watchlistData]="watchlistData"
+        [universe]="universe"
         (add)="addToWatchlist($event)"
         (remove)="removeFromWatchlist($event)">
       </app-watchlist>
