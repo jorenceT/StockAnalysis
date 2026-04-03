@@ -14,7 +14,7 @@ import { StockRecommendation } from '../../models/stock.model';
           <tr><th>Symbol</th><th>Score</th><th>Outlook</th><th>Action</th></tr>
         </thead>
         <tbody>
-          <tr *ngFor="let item of recommendations">
+          <tr *ngFor="let item of displayedRecommendations">
             <td>{{ item.stock.symbol }}</td>
             <td>{{ item.score }}</td>
             <td>{{ item.outlook }}</td>
@@ -22,10 +22,26 @@ import { StockRecommendation } from '../../models/stock.model';
           </tr>
         </tbody>
       </table>
+      <button type="button" class="toggle-btn" (click)="toggleSuggestions()">
+        {{ showAllSuggestions ? 'Show top suggestions' : 'Show all suggestions' }}
+      </button>
     </section>
   `,
-  styles: [`table{width:100%;border-collapse:collapse}th,td{padding:.5rem;border-bottom:1px solid #e5e7eb;text-align:left}`]
+  styles: [`
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:.5rem;border-bottom:1px solid #e5e7eb;text-align:left}
+    .toggle-btn{margin-top:.75rem}
+  `]
 })
 export class RecommendationsComponent {
   @Input() recommendations: StockRecommendation[] = [];
+  showAllSuggestions = false;
+
+  get displayedRecommendations(): StockRecommendation[] {
+    return this.showAllSuggestions ? this.recommendations : this.recommendations.slice(0, 5);
+  }
+
+  toggleSuggestions(): void {
+    this.showAllSuggestions = !this.showAllSuggestions;
+  }
 }

@@ -1,8 +1,22 @@
 import { Injectable } from '@angular/core';
-import { Stock, StockRecommendation } from '../models/stock.model';
+import { HttpClient } from '@angular/common/http';
+import { catchError, forkJoin, map, Observable, of } from 'rxjs';
+import { Stock, StockRecommendation, StockSearchResult } from '../models/stock.model';
+
+interface YahooSearchResponse {
+  quotes?: Array<{
+    symbol?: string;
+    shortname?: string;
+    longname?: string;
+    exchDisp?: string;
+    quoteType?: string;
+  }>;
+}
 
 @Injectable({ providedIn: 'root' })
 export class StockAnalysisService {
+  constructor(private readonly http: HttpClient) {}
+
   private readonly universe: Stock[] = [
     { symbol: 'RELIANCE', name: 'Reliance Industries', sector: 'Energy', price: 2980, peRatio: 23, epsGrowth: 13, debtToEquity: 0.41, rsi: 58, momentum: 0.72 },
     { symbol: 'TCS', name: 'Tata Consultancy Services', sector: 'IT', price: 4080, peRatio: 30, epsGrowth: 11, debtToEquity: 0.09, rsi: 64, momentum: 0.61 },
@@ -25,6 +39,24 @@ export class StockAnalysisService {
       .slice(0, limit);
   }
 
+  searchStocks(query: string): Observable<StockSearchResult[]> {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return of([]);
+
+    const localMatches = this.searchLocalUniverse(trimmedQuery);
+    const yahooQueries = this.buildYahooQueries(trimmedQuery);
+
+    return forkJoin(
+      yahooQueries.map((searchTerm) =>
+        this.fetchYahooResults(searchTerm).pipe(catchError(() => of([])))
+      )
+    ).pipe(
+      map((results) => results.flat()),
+      map((internetMatches) => this.mergeResults(localMatches, internetMatches)),
+      catchError(() => of(localMatches))
+    );
+  }
+
   analyze(stock: Stock): StockRecommendation {
     let score = 50;
 
@@ -45,5 +77,84 @@ export class StockAnalysisService {
     const reason = `EPS growth ${stock.epsGrowth}% with RSI ${stock.rsi} and momentum ${Math.round(stock.momentum * 100)}.`;
 
     return { stock, score: Math.round(score), action, outlook, reason };
+  }
+
+  private searchLocalUniverse(query: string): StockSearchResult[] {
+    const lower = query.toLowerCase();
+    return this.universe
+      .filter((stock) =>
+        stock.symbol.toLowerCase().includes(lower) ||
+        stock.name.toLowerCase().includes(lower)
+      )
+      .slice(0, 8)
+      .map((stock) => ({
+        symbol: stock.symbol,
+        name: stock.name,
+        supportedSymbol: stock.symbol
+      }));
+  }
+
+  private normalizeYahooResults(response: YahooSearchResponse): StockSearchResult[] {
+    return (response.quotes ?? [])
+      .filter((quote) => !!quote.symbol && quote.quoteType?.toLowerCase() === 'equity')
+      .filter((quote) => this.isIndianMarketQuote(quote.symbol ?? '', quote.exchDisp))
+      .map((quote) => {
+        const symbol = quote.symbol ?? '';
+        const supportedSymbol = this.resolveSupportedSymbol(symbol);
+
+        return {
+          symbol,
+          name: quote.shortname || quote.longname || symbol,
+          exchange: quote.exchDisp,
+          supportedSymbol
+        };
+      })
+      .slice(0, 10);
+  }
+
+  private fetchYahooResults(searchTerm: string): Observable<StockSearchResult[]> {
+    const yahooUrl = 'https://query1.finance.yahoo.com/v1/finance/search';
+    return this.http
+      .get<YahooSearchResponse>(yahooUrl, {
+        params: { q: searchTerm, quotesCount: '10', newsCount: '0' }
+      })
+      .pipe(map((response) => this.normalizeYahooResults(response)));
+  }
+
+  private buildYahooQueries(query: string): string[] {
+    const tokens = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((token) => token.length >= 3);
+
+    return Array.from(new Set([query.toLowerCase(), ...tokens])).slice(0, 3);
+  }
+
+  private mergeResults(localMatches: StockSearchResult[], internetMatches: StockSearchResult[]): StockSearchResult[] {
+    const seen = new Set<string>();
+    const merged = [...localMatches, ...internetMatches].filter((item) => {
+      const dedupeKey = (item.supportedSymbol || item.symbol).toUpperCase();
+      if (seen.has(dedupeKey)) return false;
+      seen.add(dedupeKey);
+      return true;
+    });
+
+    return merged.slice(0, 10);
+  }
+
+  private resolveSupportedSymbol(rawSymbol: string): string | undefined {
+    const normalized = rawSymbol.toUpperCase().split('.')[0];
+    return this.universe.find((stock) => stock.symbol === normalized)?.symbol;
+  }
+
+  private isIndianMarketQuote(symbol: string, exchange?: string): boolean {
+    const symbolUpper = symbol.toUpperCase();
+    const exchangeUpper = (exchange ?? '').toUpperCase();
+
+    return symbolUpper.endsWith('.NS') ||
+      symbolUpper.endsWith('.BO') ||
+      exchangeUpper.includes('NSE') ||
+      exchangeUpper.includes('BSE') ||
+      exchangeUpper.includes('INDIA');
   }
 }
