@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { combineLatest, map, Subscription } from 'rxjs';
-import { RecommendationsComponent } from '../recommendations/recommendations.component';
 import { WatchlistComponent } from '../watchlist/watchlist.component';
 import { StockAnalysisService } from '../../services/stock-analysis.service';
 import { WatchlistService } from '../../services/watchlist.service';
@@ -12,11 +11,10 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RecommendationsComponent, WatchlistComponent],
+  imports: [CommonModule, WatchlistComponent],
   template: `
     <main class="page grid">
       <h1>Indian Stock Advisor</h1>
-      <app-recommendations [recommendations]="rankedSuggestions"></app-recommendations>
       <app-watchlist
         [watchlistData]="watchlistData"
         [universe]="universe"
@@ -29,7 +27,6 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   universe: Stock[] = [];
-  rankedSuggestions: StockRecommendation[] = [];
   watchlistData: StockRecommendation[] = [];
 
   private sub?: Subscription;
@@ -43,7 +40,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.universe = this.analysis.getUniverse();
-    this.rankedSuggestions = this.analysis.getTopSuggestions(this.universe.length);
     await this.notifications.initPermissions();
     this.digest.start();
 
