@@ -17,6 +17,7 @@ import { Stock, StockRecommendation } from '../../models/stock.model';
       <h1>Indian Stock Advisor</h1>
       <app-watchlist
         [watchlistData]="watchlistData"
+        [universe]="universe"
         (add)="addToWatchlist($event)"
         (remove)="removeFromWatchlist($event)">
       </app-watchlist>
