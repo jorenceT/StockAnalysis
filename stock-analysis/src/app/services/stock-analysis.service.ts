@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, map, Observable, of } from 'rxjs';
+import { catchError, forkJoin, map, Observable, of } from 'rxjs';
 import { Stock, StockRecommendation, StockSearchResult } from '../models/stock.model';
 
 interface YahooSearchResponse {
@@ -44,17 +44,17 @@ export class StockAnalysisService {
     if (!trimmedQuery) return of([]);
 
     const localMatches = this.searchLocalUniverse(trimmedQuery);
-    const yahooUrl = 'https://query1.finance.yahoo.com/v1/finance/search';
+    const yahooQueries = this.buildYahooQueries(trimmedQuery);
 
-    return this.http
-      .get<YahooSearchResponse>(yahooUrl, {
-        params: { q: trimmedQuery, quotesCount: '10', newsCount: '0' }
-      })
-      .pipe(
-        map((response) => this.normalizeYahooResults(response)),
-        map((internetMatches) => this.mergeResults(localMatches, internetMatches)),
-        catchError(() => of(localMatches))
-      );
+    return forkJoin(
+      yahooQueries.map((searchTerm) =>
+        this.fetchYahooResults(searchTerm).pipe(catchError(() => of([])))
+      )
+    ).pipe(
+      map((results) => results.flat()),
+      map((internetMatches) => this.mergeResults(localMatches, internetMatches)),
+      catchError(() => of(localMatches))
+    );
   }
 
   analyze(stock: Stock): StockRecommendation {
@@ -110,6 +110,24 @@ export class StockAnalysisService {
         };
       })
       .slice(0, 10);
+  }
+
+  private fetchYahooResults(searchTerm: string): Observable<StockSearchResult[]> {
+    const yahooUrl = 'https://query1.finance.yahoo.com/v1/finance/search';
+    return this.http
+      .get<YahooSearchResponse>(yahooUrl, {
+        params: { q: searchTerm, quotesCount: '10', newsCount: '0' }
+      })
+      .pipe(map((response) => this.normalizeYahooResults(response)));
+  }
+
+  private buildYahooQueries(query: string): string[] {
+    const tokens = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((token) => token.length >= 3);
+
+    return Array.from(new Set([query.toLowerCase(), ...tokens])).slice(0, 3);
   }
 
   private mergeResults(localMatches: StockSearchResult[], internetMatches: StockSearchResult[]): StockSearchResult[] {
