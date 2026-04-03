@@ -7,7 +7,7 @@ import { StockAnalysisService } from '../../services/stock-analysis.service';
 import { WatchlistService } from '../../services/watchlist.service';
 import { MorningDigestService } from '../../services/morning-digest.service';
 import { NotificationService } from '../../services/notification.service';
-import { StockRecommendation } from '../../models/stock.model';
+import { Stock, StockRecommendation } from '../../models/stock.model';
 
 @Component({
   selector: 'app-dashboard',
@@ -16,7 +16,7 @@ import { StockRecommendation } from '../../models/stock.model';
   template: `
     <main class="page grid">
       <h1>Indian Stock Advisor</h1>
-      <app-recommendations [recommendations]="topSuggestions"></app-recommendations>
+      <app-recommendations [recommendations]="rankedSuggestions"></app-recommendations>
       <app-watchlist
         [watchlistData]="watchlistData"
         (add)="addToWatchlist($event)"
@@ -27,7 +27,8 @@ import { StockRecommendation } from '../../models/stock.model';
   styles: ['.page{max-width:920px;margin:0 auto;padding:1rem}']
 })
 export class DashboardComponent implements OnInit, OnDestroy {
-  topSuggestions: StockRecommendation[] = [];
+  universe: Stock[] = [];
+  rankedSuggestions: StockRecommendation[] = [];
   watchlistData: StockRecommendation[] = [];
 
   private sub?: Subscription;
@@ -40,7 +41,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ) {}
 
   async ngOnInit(): Promise<void> {
-    this.topSuggestions = this.analysis.getTopSuggestions(5);
+    this.universe = this.analysis.getUniverse();
+    this.rankedSuggestions = this.analysis.getTopSuggestions(this.universe.length);
     await this.notifications.initPermissions();
     this.digest.start();
 
@@ -48,7 +50,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .pipe(
         map(([symbols]) =>
           symbols
-            .map((symbol) => this.analysis.getUniverse().find((item) => item.symbol === symbol))
+            .map((symbol) => this.universe.find((item) => item.symbol === symbol))
             .filter((stock): stock is NonNullable<typeof stock> => !!stock)
             .map((stock) => this.analysis.analyze(stock))
         )
