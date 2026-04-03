@@ -113,7 +113,7 @@ export class StockAnalysisService {
   }
 
   private fetchYahooResults(searchTerm: string): Observable<StockSearchResult[]> {
-    const yahooUrl = 'https://query1.finance.yahoo.com/v1/finance/search';
+    const yahooUrl = '/yahoo/v1/finance/search';
     return this.http
       .get<YahooSearchResponse>(yahooUrl, {
         params: { q: searchTerm, quotesCount: '10', newsCount: '0' }
