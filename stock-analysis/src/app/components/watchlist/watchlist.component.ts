@@ -1,7 +1,9 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { StockRecommendation } from '../../models/stock.model';
+import { Subject, Subscription, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import { StockRecommendation, StockSearchResult } from '../../models/stock.model';
+import { StockAnalysisService } from '../../services/stock-analysis.service';
 
 @Component({
   selector: 'app-watchlist',
@@ -11,9 +13,33 @@ import { StockRecommendation } from '../../models/stock.model';
     <section class="card">
       <h2>Watchlist</h2>
       <div class="row">
-        <input [(ngModel)]="symbol" placeholder="Add symbol e.g. SBIN" />
+        <div class="input-wrap">
+          <input
+            [(ngModel)]="symbolQuery"
+            (ngModelChange)="onQueryChange()"
+            (keydown.enter)="onAdd()"
+            placeholder="Search symbol or company (e.g. Tata, SBIN)"
+          />
+          <div *ngIf="filteredSuggestions.length > 0" class="suggestions">
+            <button
+              *ngFor="let stock of filteredSuggestions"
+              type="button"
+              class="suggestion-item"
+              [disabled]="!stock.supportedSymbol"
+              (click)="selectSuggestion(stock)"
+            >
+              <strong>{{ stock.symbol }}</strong>
+              <span>{{ stock.name }}</span>
+              <small *ngIf="stock.exchange">({{ stock.exchange }})</small>
+              <small *ngIf="!stock.supportedSymbol" class="muted">Not supported for analysis</small>
+            </button>
+          </div>
+        </div>
         <button (click)="onAdd()">Add</button>
       </div>
+      <small *ngIf="showInvalidMessage" class="error">
+        Please select a valid stock from the suggestions.
+      </small>
 
       <div *ngFor="let item of watchlistData" class="item">
         <div>
@@ -24,18 +50,91 @@ import { StockRecommendation } from '../../models/stock.model';
       </div>
     </section>
   `,
-  styles: [`.row{display:flex;gap:.5rem;margin-bottom:.75rem}input{flex:1;padding:.5rem}.item{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid #eee}`]
+  styles: [`
+    .row{display:flex;gap:.5rem;margin-bottom:.5rem;align-items:flex-start}
+    .input-wrap{position:relative;flex:1}
+    input{width:100%;padding:.5rem}
+    .suggestions{position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:.375rem;box-shadow:0 6px 18px rgba(0,0,0,.08);max-height:220px;overflow:auto;z-index:10}
+    .suggestion-item{display:flex;gap:.5rem;justify-content:flex-start;width:100%;padding:.5rem .625rem;border:0;border-bottom:1px solid #f3f4f6;background:#fff;cursor:pointer}
+    .suggestion-item:disabled{color:#9ca3af;background:#f9fafb;cursor:not-allowed}
+    .suggestion-item:last-child{border-bottom:none}
+    .suggestion-item:hover{background:#f9fafb}
+    .muted{margin-left:auto}
+    .error{display:block;color:#b91c1c;margin-bottom:.5rem}
+    .item{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid #eee}
+  `]
 })
-export class WatchlistComponent {
+export class WatchlistComponent implements OnInit, OnDestroy {
   @Input() watchlistData: StockRecommendation[] = [];
   @Output() add = new EventEmitter<string>();
   @Output() remove = new EventEmitter<string>();
 
-  symbol = '';
+  private readonly queryInput$ = new Subject<string>();
+  private readonly subscriptions = new Subscription();
+  symbolQuery = '';
+  filteredSuggestions: StockSearchResult[] = [];
+  selectedSupportedSymbol?: string;
+  showInvalidMessage = false;
+
+  constructor(private readonly analysis: StockAnalysisService) {}
+
+  ngOnInit(): void {
+    this.subscriptions.add(
+      this.queryInput$
+        .pipe(
+          debounceTime(250),
+          distinctUntilChanged(),
+          switchMap((query) => this.analysis.searchStocks(query))
+        )
+        .subscribe((results) => {
+          this.filteredSuggestions = results;
+        })
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
+  }
+
+  onQueryChange(): void {
+    const query = this.symbolQuery.trim();
+    this.showInvalidMessage = false;
+    this.selectedSupportedSymbol = undefined;
+    if (!query) {
+      this.filteredSuggestions = [];
+      return;
+    }
+
+    this.queryInput$.next(query);
+  }
+
+  selectSuggestion(stock: StockSearchResult): void {
+    if (!stock.supportedSymbol) return;
+    this.symbolQuery = stock.symbol;
+    this.selectedSupportedSymbol = stock.supportedSymbol;
+    this.filteredSuggestions = [];
+    this.showInvalidMessage = false;
+  }
 
   onAdd(): void {
-    if (!this.symbol.trim()) return;
-    this.add.emit(this.symbol.trim().toUpperCase());
-    this.symbol = '';
+    const typed = this.symbolQuery.trim().toLowerCase();
+    const matchedSuggestion = this.filteredSuggestions.find(
+      (item) =>
+        !!item.supportedSymbol &&
+        (item.symbol.toLowerCase() === typed || item.name.toLowerCase() === typed)
+    );
+    const symbolToAdd = this.selectedSupportedSymbol || matchedSuggestion?.supportedSymbol;
+
+    if (!symbolToAdd) {
+      this.showInvalidMessage = true;
+      this.onQueryChange();
+      return;
+    }
+
+    this.add.emit(symbolToAdd);
+    this.symbolQuery = '';
+    this.filteredSuggestions = [];
+    this.selectedSupportedSymbol = undefined;
+    this.showInvalidMessage = false;
   }
 }
